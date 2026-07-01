@@ -16,7 +16,7 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    CORS(app)
+    CORS(app, origins=["https://frontend-wally.vercel.app", "http://localhost:5173"])
     db.init_app(app)
 
     app.register_blueprint(auth_bp)
