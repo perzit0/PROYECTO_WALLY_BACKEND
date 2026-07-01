@@ -10,7 +10,7 @@ from routes.admin_routes import admin_bp
 from routes.alertas_routes import alertas_bp
 
 from routes.dispositivo_routes import dispositivo_bp
-
+from routes.perfil_routes import perfil_bp
 
 def create_app():
     app = Flask(__name__)
@@ -24,6 +24,7 @@ def create_app():
     app.register_blueprint(admin_bp)
     app.register_blueprint(alertas_bp)
     app.register_blueprint(dispositivo_bp)
+    app.register_blueprint(perfil_bp)
 
     with app.app_context():
         db.create_all()
