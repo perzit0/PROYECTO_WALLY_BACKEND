@@ -19,4 +19,5 @@ class Dispositivo(db.Model):
             "nombre": self.nombre,
             "color": self.color,
             "usuario_id": self.usuario_id,
+            "creado_en": self.creado_en.isoformat() + "Z" if self.creado_en else None,
         }
