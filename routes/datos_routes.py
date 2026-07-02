@@ -8,7 +8,7 @@ from services.email_service import enviar_alerta_contaminacion
 
 datos_bp = Blueprint("datos", __name__, url_prefix="/api")
 
-INTERVALO_GUARDADO = timedelta(minutes=30)
+INTERVALO_GUARDADO = timedelta(minutes=1)
 COOLDOWN_ALERTA = timedelta(minutes=15)
 
 LIMITE_CO = 35
