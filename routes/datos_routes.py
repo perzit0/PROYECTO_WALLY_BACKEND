@@ -3,10 +3,18 @@ from datetime import datetime, timedelta
 from models import db
 from models.lectura import Lectura, UltimaLectura
 from models.dispositivo import Dispositivo
+from models.usuario import Usuario
+from services.email_service import enviar_alerta_contaminacion
 
 datos_bp = Blueprint("datos", __name__, url_prefix="/api")
 
 INTERVALO_GUARDADO = timedelta(minutes=30)
+COOLDOWN_ALERTA = timedelta(minutes=15)
+
+# Umbrales "malo" (mismos que el frontend)
+LIMITE_CO = 35
+LIMITE_MQ135 = 1200
+LIMITE_PM = 35.4
 
 
 @datos_bp.route("/datos", methods=["POST"])
@@ -17,7 +25,6 @@ def recibir_datos():
     if not device_id:
         return jsonify({"error": "device_id es obligatorio"}), 400
 
-    # Registrar dispositivo si no existe
     dispositivo = Dispositivo.query.filter_by(device_id=device_id).first()
     if not dispositivo:
         dispositivo = Dispositivo(device_id=device_id)
@@ -27,12 +34,12 @@ def recibir_datos():
     mq135 = data.get("mq135")
     pm = data.get("pm")
 
-# Plaza Dos de Mayo, Lima - coordenadas por defecto mientras el GPS obtiene fix
     lat = data.get("lat") or -12.045739
     lng = data.get("lng") or -77.047990
+
     ahora = datetime.utcnow()
 
-    # 1) Siempre actualizamos la "última lectura" (mapa en vivo)
+    # 1) Actualizar última lectura (mapa en vivo)
     ultima = UltimaLectura.query.filter_by(device_id=device_id).first()
     if ultima:
         ultima.co = co
@@ -47,7 +54,7 @@ def recibir_datos():
         )
         db.session.add(ultima)
 
-    # 2) Solo guardamos en el historial si pasaron 30 min desde el último guardado
+    # 2) Guardar en historial cada 30 min
     ultimo_historial = (
         Lectura.query.filter_by(device_id=device_id)
         .order_by(Lectura.timestamp.desc())
@@ -63,6 +70,28 @@ def recibir_datos():
         guardado_historial = True
 
     db.session.commit()
+
+    # 3) Verificar alertas y enviar correo al dueño si aplica
+    alertas = []
+    if co is not None and co > LIMITE_CO:
+        alertas.append({"nombre": "Monóxido de carbono (CO)", "valor": round(co, 2), "unidad": "ppm", "limite": LIMITE_CO})
+    if mq135 is not None and mq135 > LIMITE_MQ135:
+        alertas.append({"nombre": "Gases (MQ135)", "valor": round(mq135, 2), "unidad": "ppm", "limite": LIMITE_MQ135})
+    if pm is not None and pm > LIMITE_PM:
+        alertas.append({"nombre": "Material particulado (PM)", "valor": round(pm, 2), "unidad": "µg/m³", "limite": LIMITE_PM})
+
+    if alertas and dispositivo.usuario_id:
+        puede_enviar = (
+            dispositivo.ultima_alerta_enviada is None
+            or (ahora - dispositivo.ultima_alerta_enviada) >= COOLDOWN_ALERTA
+        )
+        if puede_enviar:
+            propietario = Usuario.query.get(dispositivo.usuario_id)
+            if propietario:
+                nombre_robot = dispositivo.nombre or dispositivo.device_id
+                enviar_alerta_contaminacion(propietario.email, nombre_robot, alertas)
+                dispositivo.ultima_alerta_enviada = ahora
+                db.session.commit()
 
     return jsonify({
         "mensaje": "Datos recibidos correctamente",

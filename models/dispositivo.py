@@ -7,9 +7,10 @@ class Dispositivo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     device_id = db.Column(db.String(50), unique=True, nullable=False)
     nombre = db.Column(db.String(100), nullable=True)
-    color = db.Column(db.String(7), nullable=False, default="#38bdf8")  # hex color
+    color = db.Column(db.String(7), nullable=False, default="#38bdf8")
     usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
     creado_en = db.Column(db.DateTime, default=datetime.utcnow)
+    ultima_alerta_enviada = db.Column(db.DateTime, nullable=True)
 
     def to_dict(self):
         return {

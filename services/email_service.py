@@ -47,3 +47,23 @@ def enviar_codigo_verificacion(destinatario, codigo, tipo="registro"):
     </div>
     """
     return enviar_correo(destinatario, asunto, cuerpo_html)
+
+def enviar_alerta_contaminacion(destinatario, nombre_robot, alertas):
+    asunto = f"⚠️ CUIDADO - {nombre_robot} detectó niveles altos"
+
+    lista_html = "".join([
+        f"<li><strong>{a['nombre']}</strong>: {a['valor']} {a['unidad']} (límite: {a['limite']} {a['unidad']})</li>"
+        for a in alertas
+    ])
+
+    cuerpo_html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto;">
+        <h2 style="color: #dc2626;">⚠️ Alerta de calidad del aire</h2>
+        <p>Tu robot <strong>{nombre_robot}</strong> detectó niveles altos de contaminación:</p>
+        <ul>{lista_html}</ul>
+        <p style="font-size: 13px; color: #6b7280;">
+            Revisa el mapa en tiempo real en la aplicación WALLY para más detalles.
+        </p>
+    </div>
+    """
+    return enviar_correo(destinatario, asunto, cuerpo_html)
