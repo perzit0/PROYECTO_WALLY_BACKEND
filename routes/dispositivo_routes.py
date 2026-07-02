@@ -32,17 +32,21 @@ def vincular_dispositivo():
         return jsonify({"error": "Debes iniciar sesión"}), 401
 
     data = request.get_json()
-    device_id = data.get("device_id", "").strip()
+    device_id = data.get("device_id", "").strip().upper()
 
     if not device_id:
         return jsonify({"error": "device_id es obligatorio"}), 400
 
-    dispositivo = Dispositivo.query.filter_by(device_id=device_id).first()
+    dispositivo = Dispositivo.query.filter(
+        db.func.upper(Dispositivo.device_id) == device_id
+    ).first()
 
     if not dispositivo:
         return jsonify({"error": "Este robot aún no ha enviado datos. Enciéndelo primero e intenta de nuevo."}), 404
 
     if dispositivo.usuario_id is not None:
+        if dispositivo.usuario_id == payload["id"]:
+            return jsonify({"error": "Ya tienes este robot vinculado a tu cuenta"}), 409
         return jsonify({"error": "Este robot ya está vinculado a otra cuenta"}), 409
 
     dispositivo.usuario_id = payload["id"]
