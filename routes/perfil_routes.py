@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from models.usuario import CodigoVerificacion
 from services.email_service import generar_codigo, enviar_codigo_verificacion
 
+
 perfil_bp = Blueprint("perfil", __name__, url_prefix="/api/perfil")
 
 
@@ -120,3 +121,25 @@ def exportar_mis_datos(device_id):
         download_name=f"historial_{device_id}.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+@perfil_bp.route("/graficos/<device_id>", methods=["GET"])
+def graficos_mi_robot(device_id):
+    usuario = usuario_actual()
+    if not usuario:
+        return jsonify({"error": "Debes iniciar sesión"}), 401
+
+    dispositivo = Dispositivo.query.filter_by(device_id=device_id).first()
+    if not dispositivo:
+        return jsonify({"error": "Robot no encontrado"}), 404
+
+    if dispositivo.usuario_id != usuario.id and usuario.rol != "admin":
+        return jsonify({"error": "No tienes permiso sobre este robot"}), 403
+
+    limite = request.args.get("limite", 100, type=int)
+    lecturas = (
+        Lectura.query.filter_by(device_id=device_id)
+        .order_by(Lectura.timestamp.asc())
+        .limit(limite)
+        .all()
+    )
+    return jsonify([l.to_dict() for l in lecturas]), 200
