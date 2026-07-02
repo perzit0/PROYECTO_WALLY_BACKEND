@@ -26,8 +26,10 @@ def recibir_datos():
     co = data.get("co")
     mq135 = data.get("mq135")
     pm = data.get("pm")
-    lat = data.get("lat")
-    lng = data.get("lng")
+
+# Plaza Dos de Mayo, Lima - coordenadas por defecto mientras el GPS obtiene fix
+    lat = data.get("lat") or -12.055278
+    lng = data.get("lng") or -77.043611  
     ahora = datetime.utcnow()
 
     # 1) Siempre actualizamos la "última lectura" (mapa en vivo)
