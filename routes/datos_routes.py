@@ -11,7 +11,6 @@ datos_bp = Blueprint("datos", __name__, url_prefix="/api")
 INTERVALO_GUARDADO = timedelta(minutes=30)
 COOLDOWN_ALERTA = timedelta(minutes=15)
 
-# Umbrales "malo" (mismos que el frontend)
 LIMITE_CO = 35
 LIMITE_MQ135 = 1200
 LIMITE_PM = 35.4
@@ -33,28 +32,36 @@ def recibir_datos():
     co = data.get("co")
     mq135 = data.get("mq135")
     pm = data.get("pm")
+    co_raw = data.get("co_raw")
+    mq135_raw = data.get("mq135_raw")
+    pm_raw = data.get("pm_raw")
 
     lat = data.get("lat") or -12.045739
     lng = data.get("lng") or -77.047990
 
     ahora = datetime.utcnow()
 
-    # 1) Actualizar última lectura (mapa en vivo)
+    # 1) Siempre actualizamos la "última lectura" (mapa en vivo)
     ultima = UltimaLectura.query.filter_by(device_id=device_id).first()
     if ultima:
         ultima.co = co
         ultima.mq135 = mq135
         ultima.pm = pm
+        ultima.co_raw = co_raw
+        ultima.mq135_raw = mq135_raw
+        ultima.pm_raw = pm_raw
         ultima.lat = lat
         ultima.lng = lng
         ultima.timestamp = ahora
     else:
         ultima = UltimaLectura(
-            device_id=device_id, co=co, mq135=mq135, pm=pm, lat=lat, lng=lng, timestamp=ahora
+            device_id=device_id, co=co, mq135=mq135, pm=pm,
+            co_raw=co_raw, mq135_raw=mq135_raw, pm_raw=pm_raw,
+            lat=lat, lng=lng, timestamp=ahora
         )
         db.session.add(ultima)
 
-    # 2) Guardar en historial cada 30 min
+    # 2) Solo guardamos en el historial si pasaron 30 min desde el último guardado
     ultimo_historial = (
         Lectura.query.filter_by(device_id=device_id)
         .order_by(Lectura.timestamp.desc())
@@ -64,7 +71,9 @@ def recibir_datos():
     guardado_historial = False
     if not ultimo_historial or (ahora - ultimo_historial.timestamp) >= INTERVALO_GUARDADO:
         nueva_lectura = Lectura(
-            device_id=device_id, co=co, mq135=mq135, pm=pm, lat=lat, lng=lng, timestamp=ahora
+            device_id=device_id, co=co, mq135=mq135, pm=pm,
+            co_raw=co_raw, mq135_raw=mq135_raw, pm_raw=pm_raw,
+            lat=lat, lng=lng, timestamp=ahora
         )
         db.session.add(nueva_lectura)
         guardado_historial = True

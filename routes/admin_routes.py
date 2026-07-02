@@ -1,3 +1,4 @@
+import statistics
 from flask import Blueprint, request, jsonify, send_file
 from functools import wraps
 from models import db
@@ -65,6 +66,41 @@ def graficos(device_id):
         .all()
     )
     return jsonify([l.to_dict() for l in lecturas]), 200
+
+
+@admin_bp.route("/metricas-adc/<device_id>", methods=["GET"])
+@requiere_admin
+def metricas_adc(device_id):
+    limite = request.args.get("limite", 50, type=int)
+    lecturas = (
+        Lectura.query.filter_by(device_id=device_id)
+        .order_by(Lectura.timestamp.desc())
+        .limit(limite)
+        .all()
+    )
+
+    def calcular_stats(valores):
+        valores_validos = [v for v in valores if v is not None]
+        if not valores_validos:
+            return None
+        return {
+            "media": round(statistics.mean(valores_validos), 1),
+            "minimo": min(valores_validos),
+            "maximo": max(valores_validos),
+            "desviacion_estandar": round(statistics.pstdev(valores_validos), 2) if len(valores_validos) > 1 else 0,
+            "muestras": len(valores_validos),
+        }
+
+    co_raw = [l.co_raw for l in lecturas]
+    mq135_raw = [l.mq135_raw for l in lecturas]
+    pm_raw = [l.pm_raw for l in lecturas]
+
+    return jsonify({
+        "device_id": device_id,
+        "mq7": calcular_stats(co_raw),
+        "mq135": calcular_stats(mq135_raw),
+        "sharp": calcular_stats(pm_raw),
+    }), 200
 
 
 @admin_bp.route("/exportar/historial/<device_id>", methods=["GET"])

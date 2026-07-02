@@ -9,6 +9,9 @@ class Lectura(db.Model):
     co = db.Column(db.Float, nullable=True)
     mq135 = db.Column(db.Float, nullable=True)
     pm = db.Column(db.Float, nullable=True)
+    co_raw = db.Column(db.Integer, nullable=True)
+    mq135_raw = db.Column(db.Integer, nullable=True)
+    pm_raw = db.Column(db.Integer, nullable=True)
     lat = db.Column(db.Float, nullable=True)
     lng = db.Column(db.Float, nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
@@ -20,6 +23,9 @@ class Lectura(db.Model):
             "co": self.co,
             "mq135": self.mq135,
             "pm": self.pm,
+            "co_raw": self.co_raw,
+            "mq135_raw": self.mq135_raw,
+            "pm_raw": self.pm_raw,
             "lat": self.lat,
             "lng": self.lng,
             "timestamp": self.timestamp.isoformat() + "Z",
@@ -35,6 +41,9 @@ class UltimaLectura(db.Model):
     co = db.Column(db.Float, nullable=True)
     mq135 = db.Column(db.Float, nullable=True)
     pm = db.Column(db.Float, nullable=True)
+    co_raw = db.Column(db.Integer, nullable=True)
+    mq135_raw = db.Column(db.Integer, nullable=True)
+    pm_raw = db.Column(db.Integer, nullable=True)
     lat = db.Column(db.Float, nullable=True)
     lng = db.Column(db.Float, nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
@@ -45,6 +54,9 @@ class UltimaLectura(db.Model):
             "co": self.co,
             "mq135": self.mq135,
             "pm": self.pm,
+            "co_raw": self.co_raw,
+            "mq135_raw": self.mq135_raw,
+            "pm_raw": self.pm_raw,
             "lat": self.lat,
             "lng": self.lng,
             "timestamp": self.timestamp.isoformat() + "Z",
