@@ -5,6 +5,9 @@ from models.dispositivo import Dispositivo
 from models.lectura import Lectura
 from services.auth_service import verificar_token
 from services.export_service import exportar_historial_excel
+from datetime import datetime, timedelta
+from models.usuario import CodigoVerificacion
+from services.email_service import generar_codigo, enviar_codigo_verificacion
 
 perfil_bp = Blueprint("perfil", __name__, url_prefix="/api/perfil")
 
@@ -38,15 +41,46 @@ def actualizar_nombre():
     return jsonify({"mensaje": "Nombre actualizado", "usuario": usuario.to_dict()}), 200
 
 
-@perfil_bp.route("/cambiar-password", methods=["PUT"])
-def cambiar_password():
+@perfil_bp.route("/solicitar-cambio-password", methods=["POST"])
+def solicitar_cambio_password():
+    usuario = usuario_actual()
+    if not usuario:
+        return jsonify({"error": "Debes iniciar sesión"}), 401
+
+    codigo = generar_codigo()
+    nuevo_codigo = CodigoVerificacion(email=usuario.email, codigo=codigo, tipo="cambio_password")
+    db.session.add(nuevo_codigo)
+    db.session.commit()
+
+    enviar_codigo_verificacion(usuario.email, codigo, tipo="reset_password")
+
+    return jsonify({"mensaje": "Código enviado a tu correo"}), 200
+
+
+@perfil_bp.route("/confirmar-cambio-password", methods=["PUT"])
+def confirmar_cambio_password():
     usuario = usuario_actual()
     if not usuario:
         return jsonify({"error": "Debes iniciar sesión"}), 401
 
     data = request.get_json()
+    codigo = data.get("codigo", "")
     password_actual = data.get("password_actual", "")
     password_nueva = data.get("password_nueva", "")
+
+    registro = (
+        CodigoVerificacion.query.filter_by(
+            email=usuario.email, codigo=codigo, tipo="cambio_password", usado=False
+        )
+        .order_by(CodigoVerificacion.creado_en.desc())
+        .first()
+    )
+
+    if not registro:
+        return jsonify({"error": "Código inválido"}), 400
+
+    if datetime.utcnow() - registro.creado_en > timedelta(minutes=10):
+        return jsonify({"error": "El código ha expirado"}), 400
 
     if not usuario.check_password(password_actual):
         return jsonify({"error": "La contraseña actual es incorrecta"}), 401
@@ -55,6 +89,7 @@ def cambiar_password():
         return jsonify({"error": "La nueva contraseña debe tener al menos 6 caracteres"}), 400
 
     usuario.set_password(password_nueva)
+    registro.usado = True
     db.session.commit()
 
     return jsonify({"mensaje": "Contraseña actualizada correctamente"}), 200
