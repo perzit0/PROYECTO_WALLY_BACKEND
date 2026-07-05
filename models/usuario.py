@@ -11,6 +11,7 @@ class Usuario(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     rol = db.Column(db.String(20), nullable=False, default="usuario")  # "usuario" o "admin"
     email_verificado = db.Column(db.Boolean, default=False)
+    foto_base64 = db.Column(db.Text, nullable=True)  # imagen pequeña en base64 (data URL)
     creado_en = db.Column(db.DateTime, default=datetime.utcnow)
 
     def set_password(self, password):
@@ -30,6 +31,7 @@ class Usuario(db.Model):
             "email": self.email,
             "rol": self.rol,
             "email_verificado": self.email_verificado,
+            "foto_base64": self.foto_base64,
         }
 
 

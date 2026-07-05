@@ -96,6 +96,39 @@ def confirmar_cambio_password():
     return jsonify({"mensaje": "Contraseña actualizada correctamente"}), 200
 
 
+@perfil_bp.route("/actualizar-foto", methods=["PUT"])
+def actualizar_foto():
+    usuario = usuario_actual()
+    if not usuario:
+        return jsonify({"error": "Debes iniciar sesión"}), 401
+
+    data = request.get_json()
+    foto_base64 = data.get("foto_base64", "")
+
+    if not foto_base64.startswith("data:image/"):
+        return jsonify({"error": "Formato de imagen inválido"}), 400
+
+    # Límite ~500KB en base64 para no saturar la base de datos en el free tier
+    if len(foto_base64) > 700_000:
+        return jsonify({"error": "La imagen es demasiado grande. Usa una foto más pequeña o comprimida."}), 400
+
+    usuario.foto_base64 = foto_base64
+    db.session.commit()
+
+    return jsonify({"mensaje": "Foto de perfil actualizada", "usuario": usuario.to_dict()}), 200
+
+
+@perfil_bp.route("/eliminar-foto", methods=["DELETE"])
+def eliminar_foto():
+    usuario = usuario_actual()
+    if not usuario:
+        return jsonify({"error": "Debes iniciar sesión"}), 401
+
+    usuario.foto_base64 = None
+    db.session.commit()
+    return jsonify({"mensaje": "Foto eliminada", "usuario": usuario.to_dict()}), 200
+
+
 @perfil_bp.route("/exportar/<device_id>", methods=["GET"])
 def exportar_mis_datos(device_id):
     usuario = usuario_actual()
