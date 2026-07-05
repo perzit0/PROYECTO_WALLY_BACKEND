@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from models import db
 from models.monitoreo import MonitoreoZonal
 from models.lectura import Lectura, UltimaLectura
+from models.dispositivo import Dispositivo
 from services.auth_service import verificar_token
 from services.export_service import exportar_monitoreo_excel
 from routes.datos_routes import _finalizar_monitoreo, DURACION_MAXIMA_MONITOREO
@@ -19,6 +20,92 @@ def obtener_usuario_actual():
         return None
     token = auth_header.split(" ")[1]
     return verificar_token(token)
+
+
+def verificar_permiso_dispositivo(device_id, payload):
+    """Un dispositivo sin dueño puede ser operado por cualquier usuario logueado
+    (robot todavía no vinculado). Si ya tiene dueño, solo el dueño o un admin
+    pueden iniciar/finalizar/exportar sus monitoreos."""
+    dispositivo = Dispositivo.query.filter_by(device_id=device_id).first()
+    if not dispositivo or dispositivo.usuario_id is None:
+        return True
+    return payload["id"] == dispositivo.usuario_id or payload.get("rol") == "admin"
+
+
+@monitoreo_bp.route("/publico/zonas", methods=["GET"])
+def zonas_publicas():
+    """Devuelve todos los monitoreos finalizados con círculo (centro+radio) para
+    pintarlos en el mapa público. No requiere login: son datos ambientales
+    agregados, sin información personal."""
+    monitoreos = (
+        MonitoreoZonal.query.filter_by(estado="finalizado")
+        .filter(MonitoreoZonal.centro_lat.isnot(None))
+        .order_by(MonitoreoZonal.hora_fin.desc())
+        .limit(300)
+        .all()
+    )
+
+    orden_severidad = {"bueno": 0, "moderado": 1, "malo": 2, "critico": 3, None: -1}
+
+    zonas = [
+        {
+            "id": m.id,
+            "nombre": m.nombre,
+            "centro_lat": m.centro_lat,
+            "centro_lng": m.centro_lng,
+            "radio_metros": m.radio_metros,
+            "nivel_color": m.nivel_color,
+            "color_hex": m.color_hex,
+            "hora_fin": m.hora_fin.isoformat() + "Z" if m.hora_fin else None,
+            "promedio_co": m.promedio_co,
+            "promedio_mq135": m.promedio_mq135,
+            "promedio_pm": m.promedio_pm,
+        }
+        for m in monitoreos
+    ]
+
+    # Las zonas peores se ordenan al final para que se dibujen ENCIMA cuando
+    # dos círculos se solapan: en Leaflet, el último elemento añadido queda
+    # visualmente arriba. Así, si un área fue A(amarillo) y B(rojo) se cruzan,
+    # el rojo (más crítico) siempre gana visualmente en la zona compartida.
+    zonas.sort(key=lambda z: orden_severidad.get(z["nivel_color"], -1))
+
+    return jsonify(zonas), 200
+
+
+@monitoreo_bp.route("/publico/ranking", methods=["GET"])
+def ranking_zonas():
+    """Top de zonas con mejor y peor calidad de aire registrada históricamente.
+    Es un valor agregado informativo (no en vivo, no repetitivo con el mapa)."""
+    monitoreos = (
+        MonitoreoZonal.query.filter_by(estado="finalizado")
+        .filter(MonitoreoZonal.nivel_color.isnot(None))
+        .all()
+    )
+
+    orden_severidad = {"bueno": 0, "moderado": 1, "malo": 2, "critico": 3}
+    validos = [m for m in monitoreos if m.nivel_color in orden_severidad]
+
+    def a_dict(m):
+        return {
+            "id": m.id,
+            "nombre": m.nombre or f"Zona cerca de ({round(m.centro_lat, 4)}, {round(m.centro_lng, 4)})",
+            "nivel_color": m.nivel_color,
+            "color_hex": m.color_hex,
+            "promedio_co": m.promedio_co,
+            "promedio_mq135": m.promedio_mq135,
+            "promedio_pm": m.promedio_pm,
+            "hora_fin": m.hora_fin.isoformat() + "Z" if m.hora_fin else None,
+        }
+
+    mejores = sorted(validos, key=lambda m: orden_severidad[m.nivel_color])[:5]
+    peores = sorted(validos, key=lambda m: -orden_severidad[m.nivel_color])[:5]
+
+    return jsonify({
+        "total_zonas_medidas": len(validos),
+        "mejores": [a_dict(m) for m in mejores],
+        "peores": [a_dict(m) for m in peores],
+    }), 200
 
 
 @monitoreo_bp.route("/verificar-gps/<device_id>", methods=["GET"])
@@ -58,12 +145,18 @@ def verificar_gps(device_id):
 @monitoreo_bp.route("/iniciar", methods=["POST"])
 def iniciar_monitoreo():
     payload = obtener_usuario_actual()
+    if not payload:
+        return jsonify({"error": "Debes iniciar sesión para iniciar un monitoreo zonal"}), 401
+
     data = request.get_json()
     device_id = data.get("device_id")
     nombre = data.get("nombre")
 
     if not device_id:
         return jsonify({"error": "device_id es obligatorio"}), 400
+
+    if not verificar_permiso_dispositivo(device_id, payload):
+        return jsonify({"error": "No tienes permiso para operar este robot"}), 403
 
     existente = MonitoreoZonal.query.filter_by(device_id=device_id, estado="activo").first()
     if existente:
@@ -128,9 +221,16 @@ def obtener_activo(device_id):
 
 @monitoreo_bp.route("/<int:monitoreo_id>/finalizar", methods=["POST"])
 def finalizar_monitoreo(monitoreo_id):
+    payload = obtener_usuario_actual()
+    if not payload:
+        return jsonify({"error": "Debes iniciar sesión"}), 401
+
     monitoreo = MonitoreoZonal.query.get(monitoreo_id)
     if not monitoreo:
         return jsonify({"error": "Monitoreo no encontrado"}), 404
+
+    if not verificar_permiso_dispositivo(monitoreo.device_id, payload):
+        return jsonify({"error": "No tienes permiso sobre este monitoreo"}), 403
 
     if monitoreo.estado == "finalizado":
         return jsonify({"mensaje": "Este monitoreo ya estaba finalizado", "monitoreo": monitoreo.to_dict()}), 200
@@ -168,9 +268,16 @@ def listar_monitoreos_de_dispositivo(device_id):
 
 @monitoreo_bp.route("/<int:monitoreo_id>/exportar", methods=["GET"])
 def exportar_monitoreo(monitoreo_id):
+    payload = obtener_usuario_actual()
+    if not payload:
+        return jsonify({"error": "Debes iniciar sesión"}), 401
+
     monitoreo = MonitoreoZonal.query.get(monitoreo_id)
     if not monitoreo:
         return jsonify({"error": "Monitoreo no encontrado"}), 404
+
+    if not verificar_permiso_dispositivo(monitoreo.device_id, payload):
+        return jsonify({"error": "No tienes permiso sobre este monitoreo"}), 403
 
     puntos = (
         Lectura.query.filter_by(monitoreo_id=monitoreo.id)

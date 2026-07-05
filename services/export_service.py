@@ -4,37 +4,89 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
 
+def _clasificar_fila(co, mq135, pm):
+    def nivel_co(v):
+        if v is None: return -1
+        if v < 9: return 0
+        if v < 35: return 1
+        if v < 60: return 2
+        return 3
+
+    def nivel_mq135(v):
+        if v is None: return -1
+        if v < 800: return 0
+        if v < 1200: return 1
+        if v < 1500: return 2
+        return 3
+
+    def nivel_pm(v):
+        if v is None: return -1
+        if v < 12: return 0
+        if v < 35.4: return 1
+        if v < 55: return 2
+        return 3
+
+    peor = max(nivel_co(co), nivel_mq135(mq135), nivel_pm(pm))
+    etiquetas = {-1: "Sin datos", 0: "Buena", 1: "Moderada", 2: "Mala", 3: "Crítica"}
+    colores = {-1: "E5E7EB", 0: "BBF7D0", 1: "FDE68A", 2: "FECACA", 3: "991B1B"}
+    return etiquetas[peor], colores[peor]
+
+
 def exportar_historial_excel(lecturas, device_id):
     """
-    Recibe una lista de objetos Lectura y genera un archivo Excel en memoria.
-    Retorna un objeto BytesIO listo para enviarse con send_file.
+    Recibe una lista de objetos Lectura y genera un archivo Excel en memoria,
+    con encabezado informativo y clasificación de calidad de aire coloreada
+    por fila para que sea fácil de leer sin conocimientos técnicos.
     """
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Historial"
 
-    headers = ["ID", "Device ID", "CO (ppm)", "MQ135", "PM (µg/m³)", "Latitud", "Longitud", "Fecha"]
-    ws.append(headers)
-
     header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
     header_font = Font(color="FFFFFF", bold=True)
-    for col_num, _ in enumerate(headers, 1):
-        celda = ws.cell(row=1, column=col_num)
+
+    # --- Encabezado informativo ---
+    ws.cell(row=1, column=1, value=f"Historial de sensores — {device_id}").font = Font(bold=True, size=14, color="1F4E78")
+    ws.cell(row=2, column=1, value=f"Generado: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC").font = Font(size=10, color="64748B")
+    ws.cell(row=3, column=1, value=f"Total de lecturas: {len(lecturas)}").font = Font(size=10, color="64748B")
+
+    fila_inicio_tabla = 5
+    headers = ["ID", "Device ID", "CO (ppm)", "MQ135", "PM (µg/m³)", "Calidad del aire", "Latitud", "Longitud", "Fecha"]
+    for col_num, texto in enumerate(headers, 1):
+        celda = ws.cell(row=fila_inicio_tabla, column=col_num, value=texto)
         celda.fill = header_fill
         celda.font = header_font
         celda.alignment = Alignment(horizontal="center")
 
-    for lectura in lecturas:
-        ws.append([
+    fila_actual = fila_inicio_tabla + 1
+    for i, lectura in enumerate(lecturas):
+        etiqueta, color_hex = _clasificar_fila(lectura.co, lectura.mq135, lectura.pm)
+        valores = [
             lectura.id,
             lectura.device_id,
             lectura.co if lectura.co is not None else "S/D",
             lectura.mq135 if lectura.mq135 is not None else "S/D",
             lectura.pm if lectura.pm is not None else "S/D",
+            etiqueta,
             lectura.lat if lectura.lat is not None else "S/D",
             lectura.lng if lectura.lng is not None else "S/D",
             lectura.timestamp.strftime("%Y-%m-%d %H:%M:%S") if lectura.timestamp else "S/D",
-        ])
+        ]
+        for col_num, valor in enumerate(valores, 1):
+            celda = ws.cell(row=fila_actual, column=col_num, value=valor)
+            # Fila alternada para legibilidad
+            if i % 2 == 1:
+                celda.fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+        # La columna "Calidad del aire" siempre se resalta con su color de nivel
+        celda_nivel = ws.cell(row=fila_actual, column=6)
+        celda_nivel.fill = PatternFill(start_color=color_hex, end_color=color_hex, fill_type="solid")
+        if color_hex == "991B1B":
+            celda_nivel.font = Font(color="FFFFFF", bold=True)
+        else:
+            celda_nivel.font = Font(bold=True)
+        fila_actual += 1
+
+    ws.freeze_panes = f"A{fila_inicio_tabla + 1}"
 
     for columna in ws.columns:
         max_len = max(len(str(c.value)) if c.value else 0 for c in columna)
