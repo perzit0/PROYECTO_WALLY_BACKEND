@@ -94,6 +94,9 @@ def ranking_zonas():
             "promedio_co": m.promedio_co,
             "promedio_mq135": m.promedio_mq135,
             "hora_fin": m.hora_fin.isoformat() + "Z" if m.hora_fin else None,
+            "centro_lat": m.centro_lat,
+            "centro_lng": m.centro_lng,
+            "radio_metros": m.radio_metros,
         }
 
     mejores = sorted(validos, key=lambda m: orden_severidad[m.nivel_color])[:5]
