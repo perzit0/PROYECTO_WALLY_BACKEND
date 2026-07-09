@@ -16,7 +16,6 @@ DURACION_MAXIMA_MONITOREO = timedelta(minutes=30)
 
 LIMITE_CO = 35
 LIMITE_MQ135 = 1200
-LIMITE_PM = 35.4
 
 
 def gps_es_valido(lat, lng):
@@ -44,10 +43,8 @@ def recibir_datos():
 
     co = data.get("co")
     mq135 = data.get("mq135")
-    pm = data.get("pm")
     co_raw = data.get("co_raw")
     mq135_raw = data.get("mq135_raw")
-    pm_raw = data.get("pm_raw")
 
     lat_recibido = data.get("lat")
     lng_recibido = data.get("lng")
@@ -83,10 +80,8 @@ def recibir_datos():
     if ultima:
         ultima.co = co
         ultima.mq135 = mq135
-        ultima.pm = pm
         ultima.co_raw = co_raw
         ultima.mq135_raw = mq135_raw
-        ultima.pm_raw = pm_raw
         ultima.lat = lat
         ultima.lng = lng
         ultima.gps_interpolado = gps_interpolado
@@ -97,8 +92,8 @@ def recibir_datos():
             ultima.gps_ultimo_fix = ahora
     else:
         ultima = UltimaLectura(
-            device_id=device_id, co=co, mq135=mq135, pm=pm,
-            co_raw=co_raw, mq135_raw=mq135_raw, pm_raw=pm_raw,
+            device_id=device_id, co=co, mq135=mq135,
+            co_raw=co_raw, mq135_raw=mq135_raw,
             lat=lat, lng=lng, gps_interpolado=gps_interpolado,
             velocidad_kmh=velocidad_kmh, rumbo=rumbo,
             gps_ultimo_fix=ahora if fix_valido else None,
@@ -126,8 +121,8 @@ def recibir_datos():
 
     if monitoreo_id_para_lectura:
         nueva_lectura = Lectura(
-            device_id=device_id, co=co, mq135=mq135, pm=pm,
-            co_raw=co_raw, mq135_raw=mq135_raw, pm_raw=pm_raw,
+            device_id=device_id, co=co, mq135=mq135,
+            co_raw=co_raw, mq135_raw=mq135_raw,
             lat=lat, lng=lng, gps_interpolado=gps_interpolado,
             velocidad_kmh=velocidad_kmh, rumbo=rumbo,
             monitoreo_id=monitoreo_id_para_lectura, timestamp=ahora,
@@ -143,8 +138,8 @@ def recibir_datos():
         )
         if not ultimo_historial or (ahora - ultimo_historial.timestamp) >= INTERVALO_GUARDADO:
             nueva_lectura = Lectura(
-                device_id=device_id, co=co, mq135=mq135, pm=pm,
-                co_raw=co_raw, mq135_raw=mq135_raw, pm_raw=pm_raw,
+                device_id=device_id, co=co, mq135=mq135,
+                co_raw=co_raw, mq135_raw=mq135_raw,
                 lat=lat, lng=lng, gps_interpolado=gps_interpolado,
                 velocidad_kmh=velocidad_kmh, rumbo=rumbo, timestamp=ahora,
             )
@@ -159,8 +154,6 @@ def recibir_datos():
         alertas.append({"nombre": "Monóxido de carbono (CO)", "valor": round(co, 2), "unidad": "ppm", "limite": LIMITE_CO})
     if mq135 is not None and mq135 > LIMITE_MQ135:
         alertas.append({"nombre": "Gases (MQ135)", "valor": round(mq135, 2), "unidad": "ppm", "limite": LIMITE_MQ135})
-    if pm is not None and pm > LIMITE_PM:
-        alertas.append({"nombre": "Material particulado (PM)", "valor": round(pm, 2), "unidad": "µg/m³", "limite": LIMITE_PM})
 
     if alertas and dispositivo.usuario_id:
         puede_enviar = (
@@ -194,7 +187,6 @@ def _finalizar_monitoreo(monitoreo, ahora):
 
     valores_co = [l.co for l in lecturas if l.co is not None]
     valores_mq135 = [l.mq135 for l in lecturas if l.mq135 is not None]
-    valores_pm = [l.pm for l in lecturas if l.pm is not None]
     velocidades = [l.velocidad_kmh for l in lecturas if l.velocidad_kmh is not None]
 
     puntos = [(l.lat, l.lng) for l in lecturas]
@@ -202,8 +194,7 @@ def _finalizar_monitoreo(monitoreo, ahora):
 
     promedio_co = round(sum(valores_co) / len(valores_co), 2) if valores_co else None
     promedio_mq135 = round(sum(valores_mq135) / len(valores_mq135), 2) if valores_mq135 else None
-    promedio_pm = round(sum(valores_pm) / len(valores_pm), 2) if valores_pm else None
-    nivel, color_hex = clasificar_nivel(promedio_co, promedio_mq135, promedio_pm)
+    nivel, color_hex = clasificar_nivel(promedio_co, promedio_mq135)
 
     monitoreo.estado = "finalizado"
     monitoreo.hora_fin = ahora
@@ -211,7 +202,6 @@ def _finalizar_monitoreo(monitoreo, ahora):
     monitoreo.lng_fin = lecturas[-1].lng if lecturas else monitoreo.lng_inicio
     monitoreo.promedio_co = promedio_co
     monitoreo.promedio_mq135 = promedio_mq135
-    monitoreo.promedio_pm = promedio_pm
     monitoreo.nivel_color = nivel
     monitoreo.color_hex = color_hex
     monitoreo.centro_lat = centro_lat

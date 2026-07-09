@@ -4,7 +4,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
 
-def _clasificar_fila(co, mq135, pm):
+def _clasificar_fila(co, mq135):
     def nivel_co(v):
         if v is None: return -1
         if v < 9: return 0
@@ -19,14 +19,7 @@ def _clasificar_fila(co, mq135, pm):
         if v < 1500: return 2
         return 3
 
-    def nivel_pm(v):
-        if v is None: return -1
-        if v < 12: return 0
-        if v < 35.4: return 1
-        if v < 55: return 2
-        return 3
-
-    peor = max(nivel_co(co), nivel_mq135(mq135), nivel_pm(pm))
+    peor = max(nivel_co(co), nivel_mq135(mq135))
     etiquetas = {-1: "Sin datos", 0: "Buena", 1: "Moderada", 2: "Mala", 3: "Crítica"}
     colores = {-1: "E5E7EB", 0: "BBF7D0", 1: "FDE68A", 2: "FECACA", 3: "991B1B"}
     return etiquetas[peor], colores[peor]
@@ -51,7 +44,7 @@ def exportar_historial_excel(lecturas, device_id):
     ws.cell(row=3, column=1, value=f"Total de lecturas: {len(lecturas)}").font = Font(size=10, color="64748B")
 
     fila_inicio_tabla = 5
-    headers = ["ID", "Device ID", "CO (ppm)", "MQ135", "PM (µg/m³)", "Calidad del aire", "Latitud", "Longitud", "Fecha"]
+    headers = ["ID", "Device ID", "CO (ppm)", "MQ135", "Calidad del aire", "Latitud", "Longitud", "Fecha"]
     for col_num, texto in enumerate(headers, 1):
         celda = ws.cell(row=fila_inicio_tabla, column=col_num, value=texto)
         celda.fill = header_fill
@@ -60,13 +53,12 @@ def exportar_historial_excel(lecturas, device_id):
 
     fila_actual = fila_inicio_tabla + 1
     for i, lectura in enumerate(lecturas):
-        etiqueta, color_hex = _clasificar_fila(lectura.co, lectura.mq135, lectura.pm)
+        etiqueta, color_hex = _clasificar_fila(lectura.co, lectura.mq135)
         valores = [
             lectura.id,
             lectura.device_id,
             lectura.co if lectura.co is not None else "S/D",
             lectura.mq135 if lectura.mq135 is not None else "S/D",
-            lectura.pm if lectura.pm is not None else "S/D",
             etiqueta,
             lectura.lat if lectura.lat is not None else "S/D",
             lectura.lng if lectura.lng is not None else "S/D",
@@ -78,7 +70,7 @@ def exportar_historial_excel(lecturas, device_id):
             if i % 2 == 1:
                 celda.fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
         # La columna "Calidad del aire" siempre se resalta con su color de nivel
-        celda_nivel = ws.cell(row=fila_actual, column=6)
+        celda_nivel = ws.cell(row=fila_actual, column=5)
         celda_nivel.fill = PatternFill(start_color=color_hex, end_color=color_hex, fill_type="solid")
         if color_hex == "991B1B":
             celda_nivel.font = Font(color="FFFFFF", bold=True)
@@ -125,7 +117,6 @@ def exportar_monitoreo_excel(monitoreo, lecturas):
         ("Ubicación de fin", f"{monitoreo.lat_fin}, {monitoreo.lng_fin}" if monitoreo.lat_fin else "S/D"),
         ("Promedio CO (ppm)", monitoreo.promedio_co if monitoreo.promedio_co is not None else "S/D"),
         ("Promedio MQ135", monitoreo.promedio_mq135 if monitoreo.promedio_mq135 is not None else "S/D"),
-        ("Promedio PM (µg/m³)", monitoreo.promedio_pm if monitoreo.promedio_pm is not None else "S/D"),
         ("Nivel de calidad de aire", monitoreo.nivel_color or "S/D"),
         ("Centro de la zona (lat, lng)", f"{monitoreo.centro_lat}, {monitoreo.centro_lng}" if monitoreo.centro_lat else "S/D"),
         ("Radio de la zona (metros)", monitoreo.radio_metros if monitoreo.radio_metros is not None else "S/D"),
@@ -147,7 +138,7 @@ def exportar_monitoreo_excel(monitoreo, lecturas):
 
     # --- Hoja Recorrido ---
     ws_rec = wb.create_sheet("Recorrido")
-    headers = ["#", "Latitud", "Longitud", "GPS interpolado", "CO (ppm)", "MQ135", "PM (µg/m³)", "Velocidad (km/h)", "Fecha/Hora"]
+    headers = ["#", "Latitud", "Longitud", "GPS interpolado", "CO (ppm)", "MQ135", "Velocidad (km/h)", "Fecha/Hora"]
     ws_rec.append(headers)
     for col_num, _ in enumerate(headers, 1):
         celda = ws_rec.cell(row=1, column=col_num)
@@ -163,7 +154,6 @@ def exportar_monitoreo_excel(monitoreo, lecturas):
             "Sí" if l.gps_interpolado else "No",
             l.co if l.co is not None else "S/D",
             l.mq135 if l.mq135 is not None else "S/D",
-            l.pm if l.pm is not None else "S/D",
             l.velocidad_kmh if l.velocidad_kmh is not None else "S/D",
             l.timestamp.strftime("%Y-%m-%d %H:%M:%S") if l.timestamp else "S/D",
         ])

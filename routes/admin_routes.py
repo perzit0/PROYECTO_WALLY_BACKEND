@@ -93,13 +93,11 @@ def metricas_adc(device_id):
 
     co_raw = [l.co_raw for l in lecturas]
     mq135_raw = [l.mq135_raw for l in lecturas]
-    pm_raw = [l.pm_raw for l in lecturas]
 
     return jsonify({
         "device_id": device_id,
         "mq7": calcular_stats(co_raw),
         "mq135": calcular_stats(mq135_raw),
-        "sharp": calcular_stats(pm_raw),
     }), 200
 
 

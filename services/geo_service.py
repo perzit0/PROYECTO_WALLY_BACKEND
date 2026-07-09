@@ -49,8 +49,8 @@ def calcular_centroide_y_radio(puntos):
     return centro_lat, centro_lng, radio, distancia_total
 
 
-def clasificar_nivel(promedio_co, promedio_mq135, promedio_pm):
-    """Devuelve el peor nivel entre los 3 sensores (el más restrictivo manda)."""
+def clasificar_nivel(promedio_co, promedio_mq135):
+    """Devuelve el peor nivel entre los sensores (el más restrictivo manda)."""
     niveles_orden = {"bueno": 0, "moderado": 1, "malo": 2, "critico": 3, "sin datos": -1}
 
     def nivel_co(v):
@@ -75,18 +75,7 @@ def clasificar_nivel(promedio_co, promedio_mq135, promedio_pm):
             return "malo"
         return "critico"
 
-    def nivel_pm(v):
-        if v is None:
-            return "sin datos"
-        if v < 12:
-            return "bueno"
-        if v < 35.4:
-            return "moderado"
-        if v < 55:
-            return "malo"
-        return "critico"
-
-    niveles = [nivel_co(promedio_co), nivel_mq135(promedio_mq135), nivel_pm(promedio_pm)]
+    niveles = [nivel_co(promedio_co), nivel_mq135(promedio_mq135)]
     niveles_validos = [n for n in niveles if n != "sin datos"]
     if not niveles_validos:
         return "sin datos", "#9ca3af"

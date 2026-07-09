@@ -10,7 +10,6 @@ alertas_bp = Blueprint("alertas", __name__, url_prefix="/api/alertas")
 UMBRALES = {
     "co": 50,
     "mq135": 300,
-    "pm": 100,
 }
 
 
@@ -49,8 +48,6 @@ def alertas_activas():
             superados.append({"tipo": "co", "valor": ultima.co, "umbral": UMBRALES["co"]})
         if ultima.mq135 is not None and ultima.mq135 > UMBRALES["mq135"]:
             superados.append({"tipo": "mq135", "valor": ultima.mq135, "umbral": UMBRALES["mq135"]})
-        if ultima.pm is not None and ultima.pm > UMBRALES["pm"]:
-            superados.append({"tipo": "pm", "valor": ultima.pm, "umbral": UMBRALES["pm"]})
 
         if superados:
             alertas.append({

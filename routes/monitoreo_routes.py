@@ -59,7 +59,6 @@ def zonas_publicas():
             "hora_fin": m.hora_fin.isoformat() + "Z" if m.hora_fin else None,
             "promedio_co": m.promedio_co,
             "promedio_mq135": m.promedio_mq135,
-            "promedio_pm": m.promedio_pm,
         }
         for m in monitoreos
     ]
@@ -94,7 +93,6 @@ def ranking_zonas():
             "color_hex": m.color_hex,
             "promedio_co": m.promedio_co,
             "promedio_mq135": m.promedio_mq135,
-            "promedio_pm": m.promedio_pm,
             "hora_fin": m.hora_fin.isoformat() + "Z" if m.hora_fin else None,
         }
 

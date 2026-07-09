@@ -9,10 +9,8 @@ class Lectura(db.Model):
     device_id = db.Column(db.String(50), nullable=False)
     co = db.Column(db.Float, nullable=True)
     mq135 = db.Column(db.Float, nullable=True)
-    pm = db.Column(db.Float, nullable=True)
     co_raw = db.Column(db.Integer, nullable=True)
     mq135_raw = db.Column(db.Integer, nullable=True)
-    pm_raw = db.Column(db.Integer, nullable=True)
     lat = db.Column(db.Float, nullable=True)
     lng = db.Column(db.Float, nullable=True)
     gps_interpolado = db.Column(db.Boolean, default=False, nullable=False)
@@ -27,10 +25,8 @@ class Lectura(db.Model):
             "device_id": self.device_id,
             "co": self.co,
             "mq135": self.mq135,
-            "pm": self.pm,
             "co_raw": self.co_raw,
             "mq135_raw": self.mq135_raw,
-            "pm_raw": self.pm_raw,
             "lat": self.lat,
             "lng": self.lng,
             "gps_interpolado": self.gps_interpolado,
@@ -51,10 +47,8 @@ class UltimaLectura(db.Model):
     device_id = db.Column(db.String(50), primary_key=True)
     co = db.Column(db.Float, nullable=True)
     mq135 = db.Column(db.Float, nullable=True)
-    pm = db.Column(db.Float, nullable=True)
     co_raw = db.Column(db.Integer, nullable=True)
     mq135_raw = db.Column(db.Integer, nullable=True)
-    pm_raw = db.Column(db.Integer, nullable=True)
     lat = db.Column(db.Float, nullable=True)
     lng = db.Column(db.Float, nullable=True)
     gps_interpolado = db.Column(db.Boolean, default=False, nullable=False)
@@ -68,10 +62,8 @@ class UltimaLectura(db.Model):
             "device_id": self.device_id,
             "co": self.co,
             "mq135": self.mq135,
-            "pm": self.pm,
             "co_raw": self.co_raw,
             "mq135_raw": self.mq135_raw,
-            "pm_raw": self.pm_raw,
             "lat": self.lat,
             "lng": self.lng,
             "gps_interpolado": self.gps_interpolado,

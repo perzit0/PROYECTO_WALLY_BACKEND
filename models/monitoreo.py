@@ -26,7 +26,6 @@ class MonitoreoZonal(db.Model):
     # Resultados calculados al finalizar
     promedio_co = db.Column(db.Float, nullable=True)
     promedio_mq135 = db.Column(db.Float, nullable=True)
-    promedio_pm = db.Column(db.Float, nullable=True)
     nivel_color = db.Column(db.String(20), nullable=True)  # bueno | moderado | malo | critico
     color_hex = db.Column(db.String(7), nullable=True)
 
@@ -52,7 +51,6 @@ class MonitoreoZonal(db.Model):
             "lng_fin": self.lng_fin,
             "promedio_co": self.promedio_co,
             "promedio_mq135": self.promedio_mq135,
-            "promedio_pm": self.promedio_pm,
             "nivel_color": self.nivel_color,
             "color_hex": self.color_hex,
             "centro_lat": self.centro_lat,
