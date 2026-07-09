@@ -17,6 +17,12 @@ DURACION_MAXIMA_MONITOREO = timedelta(minutes=30)
 LIMITE_CO = 35
 LIMITE_MQ135 = 1200
 
+# Coordenada por defecto mientras el robot no ha logrado ningún fix GPS real
+# todavía (recién encendido, o dispositivo nuevo sin historial). Apenas llega
+# el primer fix válido, este valor deja de usarse y manda el GPS real.
+LAT_DEFECTO = -12.045775381337602
+LNG_DEFECTO = -77.04798514535877
+
 
 def gps_es_valido(lat, lng):
     """Un fix GPS real nunca es exactamente (0,0) ni None. El NEO-6M manda
@@ -63,9 +69,16 @@ def recibir_datos():
         gps_interpolado = False
     else:
         # Sin señal: heredamos la última ubicación conocida en vez de
-        # inventar o resetear a un punto fijo.
-        lat = ultima.lat if ultima else None
-        lng = ultima.lng if ultima else None
+        # inventar o resetear a un punto fijo. Si ni siquiera hay una
+        # última ubicación conocida (robot recién encendido, o dispositivo
+        # nuevo sin ningún fix previo), usamos la coordenada por defecto en
+        # vez de dejar lat/lng en None.
+        if ultima and ultima.lat is not None and ultima.lng is not None:
+            lat = ultima.lat
+            lng = ultima.lng
+        else:
+            lat = LAT_DEFECTO
+            lng = LNG_DEFECTO
         gps_interpolado = True
 
     # Si no hay velocidad/rumbo del propio GPS, la calculamos con la
