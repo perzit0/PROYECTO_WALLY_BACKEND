@@ -7,6 +7,7 @@ from models.usuario import Usuario
 from models.monitoreo import MonitoreoZonal
 from services.email_service import enviar_alerta_contaminacion
 from services.geo_service import haversine_m, calcular_centroide_y_radio, clasificar_nivel
+from services.push_service import enviar_push
 
 datos_bp = Blueprint("datos", __name__, url_prefix="/api")
 
@@ -16,6 +17,21 @@ DURACION_MAXIMA_MONITOREO = timedelta(minutes=30)
 
 LIMITE_CO = 35
 LIMITE_MQ135 = 1200
+
+# --- Detección de variación brusca (alarma push al celular) ---
+# Un salto (subida o caída) mayor o igual a estos deltas entre la lectura
+# anterior y la actual dispara una notificación de prioridad máxima vía ntfy.
+VARIACION_BRUSCA_CO = 15       # ppm
+VARIACION_BRUSCA_MQ135 = 300   # ppm
+# La lectura anterior debe ser reciente para que comparar tenga sentido
+# (si el robot estuvo apagado horas, el salto no es "brusco", es arranque).
+VENTANA_VARIACION = timedelta(minutes=2)
+# Tiempo mínimo entre alarmas push por dispositivo, para no bombardear
+# el celular si los valores siguen oscilando.
+COOLDOWN_PUSH = timedelta(minutes=5)
+
+# Último push de variación brusca por device_id (en memoria por proceso)
+_ultimo_push_variacion = {}
 
 # Coordenada por defecto mientras el robot no ha logrado ningún fix GPS real
 # todavía (recién encendido, o dispositivo nuevo sin historial). Apenas llega
@@ -60,6 +76,11 @@ def recibir_datos():
     ahora = datetime.utcnow()
 
     ultima = UltimaLectura.query.filter_by(device_id=device_id).first()
+
+    # Valores previos para detectar variación brusca (antes de sobrescribir)
+    co_anterior = ultima.co if ultima else None
+    mq135_anterior = ultima.mq135 if ultima else None
+    timestamp_anterior = ultima.timestamp if ultima else None
 
     fix_valido = gps_es_valido(lat_recibido, lng_recibido)
 
@@ -161,7 +182,13 @@ def recibir_datos():
 
     db.session.commit()
 
-    # 3) Verificar alertas y enviar correo al dueño si aplica
+    # 3) Detección de variación brusca → alarma push al celular (ntfy)
+    _verificar_variacion_brusca(
+        dispositivo, co_anterior, mq135_anterior, timestamp_anterior,
+        co, mq135, ahora,
+    )
+
+    # 4) Verificar alertas y enviar correo al dueño si aplica
     alertas = []
     if co is not None and co > LIMITE_CO:
         alertas.append({"nombre": "Monóxido de carbono (CO)", "valor": round(co, 2), "unidad": "ppm", "limite": LIMITE_CO})
@@ -178,6 +205,16 @@ def recibir_datos():
             if propietario:
                 nombre_robot = dispositivo.nombre or dispositivo.device_id
                 enviar_alerta_contaminacion(propietario.email, nombre_robot, alertas)
+                detalle = "\n".join(
+                    f"{a['nombre']}: {a['valor']} {a['unidad']} (límite {a['limite']})"
+                    for a in alertas
+                )
+                enviar_push(
+                    titulo=f"☠️ Límite superado - {nombre_robot}",
+                    mensaje=detalle,
+                    prioridad=5,
+                    tags=["skull", "rotating_light"],
+                )
                 dispositivo.ultima_alerta_enviada = ahora
                 db.session.commit()
 
@@ -187,6 +224,54 @@ def recibir_datos():
         "gps_interpolado": gps_interpolado,
         "monitoreo_activo": monitoreo_id_para_lectura,
     }), 201
+
+
+def _verificar_variacion_brusca(dispositivo, co_anterior, mq135_anterior,
+                                timestamp_anterior, co, mq135, ahora):
+    """Compara la lectura nueva contra la anterior y, si algún sensor saltó
+    (subió o cayó) más allá del delta configurado, manda una alarma push de
+    prioridad máxima al celular con los datos de AMBOS sensores."""
+    if timestamp_anterior is None or (ahora - timestamp_anterior) > VENTANA_VARIACION:
+        return
+
+    variaciones = []
+    if co_anterior is not None and co is not None:
+        delta_co = co - co_anterior
+        if abs(delta_co) >= VARIACION_BRUSCA_CO:
+            variaciones.append(
+                f"CO (MQ-7): {round(co_anterior, 1)} → {round(co, 1)} ppm "
+                f"({'subió' if delta_co > 0 else 'cayó'} {round(abs(delta_co), 1)})"
+            )
+    if mq135_anterior is not None and mq135 is not None:
+        delta_mq = mq135 - mq135_anterior
+        if abs(delta_mq) >= VARIACION_BRUSCA_MQ135:
+            variaciones.append(
+                f"Gases (MQ-135): {round(mq135_anterior, 1)} → {round(mq135, 1)} ppm "
+                f"({'subió' if delta_mq > 0 else 'cayó'} {round(abs(delta_mq), 1)})"
+            )
+
+    if not variaciones:
+        return
+
+    ultimo_push = _ultimo_push_variacion.get(dispositivo.device_id)
+    if ultimo_push and (ahora - ultimo_push) < COOLDOWN_PUSH:
+        return
+    _ultimo_push_variacion[dispositivo.device_id] = ahora
+
+    nombre_robot = dispositivo.nombre or dispositivo.device_id
+    # Estado actual de ambos sensores, aunque solo uno haya variado
+    lineas = variaciones + [
+        "",
+        f"Valores actuales → CO: {round(co, 1) if co is not None else 'sin dato'} ppm | "
+        f"MQ-135: {round(mq135, 1) if mq135 is not None else 'sin dato'} ppm",
+        f"Hora: {(ahora - timedelta(hours=5)).strftime('%d/%m/%Y %H:%M:%S')} (hora Perú)",
+    ]
+    enviar_push(
+        titulo=f"🚨 Variación brusca - {nombre_robot}",
+        mensaje="\n".join(lineas),
+        prioridad=5,
+        tags=["rotating_light", "warning"],
+    )
 
 
 def _finalizar_monitoreo(monitoreo, ahora):
