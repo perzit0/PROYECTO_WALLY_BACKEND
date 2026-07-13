@@ -7,7 +7,7 @@ from models.usuario import Usuario
 from models.monitoreo import MonitoreoZonal
 from services.email_service import enviar_alerta_contaminacion
 from services.geo_service import haversine_m, calcular_centroide_y_radio, clasificar_nivel
-from services.push_service import enviar_push
+from services.push_service import enviar_push, enviar_webpush_a_todos
 
 datos_bp = Blueprint("datos", __name__, url_prefix="/api")
 
@@ -32,6 +32,12 @@ COOLDOWN_PUSH = timedelta(minutes=5)
 
 # Último push de variación brusca por device_id (en memoria por proceso)
 _ultimo_push_variacion = {}
+
+# Mientras los valores sigan por encima del límite, la alarma dentro de la
+# app WALLY se repite con esta frecuencia (efecto "insistente"). Se corta
+# sola apenas los valores bajan del límite.
+COOLDOWN_WEBPUSH_LIMITE = timedelta(seconds=30)
+_ultimo_webpush_limite = {}
 
 # Coordenada por defecto mientras el robot no ha logrado ningún fix GPS real
 # todavía (recién encendido, o dispositivo nuevo sin historial). Apenas llega
@@ -195,6 +201,24 @@ def recibir_datos():
     if mq135 is not None and mq135 > LIMITE_MQ135:
         alertas.append({"nombre": "Gases (MQ135)", "valor": round(mq135, 2), "unidad": "ppm", "limite": LIMITE_MQ135})
 
+    # 4a) Alarma dentro de la app WALLY: se repite cada 30 s mientras los
+    # valores sigan por encima del límite (efecto insistente); se corta sola
+    # cuando bajan.
+    if alertas:
+        ultimo_wp = _ultimo_webpush_limite.get(device_id)
+        if ultimo_wp is None or (ahora - ultimo_wp) >= COOLDOWN_WEBPUSH_LIMITE:
+            _ultimo_webpush_limite[device_id] = ahora
+            nombre_robot = dispositivo.nombre or dispositivo.device_id
+            detalle_wp = "\n".join(
+                f"{a['nombre']}: {a['valor']} {a['unidad']} (límite {a['limite']})"
+                for a in alertas
+            )
+            enviar_webpush_a_todos(
+                titulo=f"☠️ Límite superado - {nombre_robot}",
+                mensaje=detalle_wp + "\n(la alarma se repetirá mientras dure el peligro)",
+            )
+
+    # 4b) Correo + ntfy al dueño del dispositivo (con su propio cooldown)
     if alertas and dispositivo.usuario_id:
         puede_enviar = (
             dispositivo.ultima_alerta_enviada is None
@@ -271,6 +295,11 @@ def _verificar_variacion_brusca(dispositivo, co_anterior, mq135_anterior,
         mensaje="\n".join(lineas),
         prioridad=5,
         tags=["rotating_light", "warning"],
+    )
+    # La misma alarma dentro de la app WALLY (web push)
+    enviar_webpush_a_todos(
+        titulo=f"🚨 Variación brusca - {nombre_robot}",
+        mensaje="\n".join(lineas),
     )
 
 
