@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cmd /c \"c:\\\\BACKEND_WALLY\\\\SIMULAR_ALARMA.bat < nul\")",
+      "Read(//c/FRONTEND_WALLY/**)",
+      "Read(//c/FRONTEND_WALLY/public/**)",
+      "Bash(node \"C:\\\\Users\\\\percy\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--BACKEND-WALLY\\\\97d18236-d830-4d2c-b60c-8a26f724931f\\\\scratchpad\\\\gen_icons.js\")",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(grep -o \"registerSW[^\\\\\"]*\\\\|manifest.webmanifest\" /c/FRONTEND_WALLY/dist/index.html | sort -u)",
+      "Read(//c/FRONTEND_WALLY/dist/**)",
+      "Bash(curl -s -o /dev/null -w \"sw.js: %{http_code}\\\\n\" https://frontend-wally.vercel.app/sw.js)",
+      "Bash(curl -s -o /dev/null -w \"pwa-512.png: %{http_code}\\\\n\" https://frontend-wally.vercel.app/pwa-512.png)",
+      "Bash(mkdir -p /c/FRONTEND_WALLY/QR_WALLY)",
+      "Bash(npx -y qrcode -o qr-wally-app.png -w 600 -m 2 \"https://frontend-wally.vercel.app\")",
+      "Read(//c/FRONTEND_WALLY/QR_WALLY/**)",
+      "Bash(node -e ' *)",
+      "Read(//c/FRONTEND_WALLY/src/api/**)",
+      "Read(//c/FRONTEND_WALLY/src/**)",
+      "Bash(./venv/Scripts/pip.exe install *)",
+      "Bash(./venv/Scripts/pip.exe show *)",
+      "Bash(./venv/Scripts/python.exe -c ' *)",
+      "Bash(grep -oE \"addEventListener\\\\\\(.{0,20}\" /c/FRONTEND_WALLY/dist/sw.js)",
+      "Bash(curl -s -m 90 https://proyecto-wally-backend.onrender.com/api/push/clave-publica)",
+      "Bash(curl -s -m 90 -X POST -H \"Content-Type: application/json\" -d \"{}\" https://proyecto-wally-backend.onrender.com/api/push/probar)"
+    ],
+    "additionalDirectories": [
+      "c:\\FRONTEND_WALLY",
+      "c:\\FRONTEND_WALLY\\QR_WALLY",
+      "c:\\FRONTEND_WALLY\\src"
+    ]
+  }
+}
